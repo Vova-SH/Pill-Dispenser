@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AutoPill - Настройка</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="text/javascript" src="script.js"></script>
+  <script type="text/javascript">
+    // API methods
+    const api = {
+      lock: '/api/lock',
+      light: '/api/light',
+      time: '/api/time',
+      url: '/api/time/ntp',
+      autosync: '/api/time/ntp/auto',
+      info: '/api/info',
+      battery: '/api/info/battery',
+      schedule: '/api/schedule',
+      wifi: '/api/wifi'
+    }
+
+    const setState = (key) => {
+      switch (key) {
+        case 'lock':
+          setToggle('lock')
+          break
+        case 'light':
+          setToggle('light')
+          break
+        case 'autosync':
+          setToggle('autosync')
+          break
+        case 'time':
+          setCurrentTime()
+          break
+        case 'url':
+          setUrl()
+          break
+        case 'wifi':
+          setWifi()
+          break
+        case 'info':
+          //setInfo()
+          break
+        case 'schedule':
+          state.schedule.data.map((item) => addScheludes(item))
+          break
+        default:
+          break
+      }
+    }
+    // Initial setters
+
+    // Set toggle by name
+    const setToggle = (name) => {
+      const el = El.ById(name)
+      if (state[name].status) {
+        el.disabled = false
+        el.checked = state[name].data.enable
+      } else {
+        el.disabled = true
+      }
+    }
+    // Set info in modal windows
+    const setInfo = () => {
+      const data = state.info.data
+      const version = El.ById('info-version')
+      version.innerText = `Version: ${data.version}`
+      const module = El.ById('info-module', {
+        innerText: `Cores: ${data.cores}`,
+      })
+      module.innerText = `Cores: ${data.cores}`
+    }
+
+    // Set wifi connect
+    const setWifi = () => {
+      const el = El.ById('wifi-ssid')
+      el.value = state.wifi.data.ssid
+    }
+
+    // Set url ntp server to input
+    const setUrl = () => {
+      const el = El.ById('server-ntp')
+      el.value = state.url.data.uri
+    }
+
+    // Set current time and chage it every 1 sec
+    var intervalId
+    const setCurrentTime = () => {
+      clearInterval(intervalId)
+      const el = El.ById('current-time')
+      el.innerText = new Date(state.time.data.time_sec * 1000).toLocaleString()
+      intervalId = setInterval(changeCurrentTime, 1000)
+    }
+    const changeCurrentTime = () => {
+      const el = El.ById('current-time')
+      state.time.data.time_sec = state.time.data.time_sec + 1
+      el.innerText = new Date(state.time.data.time_sec * 1000).toLocaleString()
+    }
+    // Create schelude item
+    const addScheludes = (item) => {
+      let time
+      if (item) time = new Date(item.time_sec * 1000)
+      const main = El.Create.El('fieldset', {
+        classList: 'schedule-item',
+      })
+      const inputOpts = {
+        type: 'text',
+        classList: 'time',
+        size: '1',
+        maxLength: '2',
+      }
+      const hours = El.Create.El('input', {
+        ...inputOpts,
+        placeholder: '13',
+        value: item ? time.getHours() : '',
+      })
+      const minute = El.Create.El('input', {
+        ...inputOpts,
+        placeholder: '00',
+        value: item ? time.getMinutes() : '',
+      })
+      const day = El.Create.El('input', {
+        ...inputOpts,
+        placeholder: 'DD',
+        value: item ? time.getDate() : '',
+      })
+      const month = El.Create.El('input', {
+        ...inputOpts,
+        placeholder: 'MM',
+        value: item ? time.getMonth() + 1 : '',
+      })
+      const year = El.Create.El('input', {
+        ...inputOpts,
+        size: '2',
+        maxLength: '4',
+        placeholder: 'YYYY',
+        value: item ? time.getFullYear() : '',
+      })
+      const remove = El.Create.El('button', {
+        classList: 'pure-button button-error',
+        type: 'button',
+      })
+      remove.onclick = () => El.ById('schedule').removeChild(main)
+      remove.innerText = 'Remove'
+      let selectValue = 'nothing';
+      if (item) {
+        if (item.repeat == 0) selectValue = 'nothing'
+        else if (item.repeat == 1) selectValue = 'every week'
+        else selectValue = 'every day'
+      }
+      El.AddSeq(main, [
+        hours,
+        El.Create.Label('<b>:</b>'),
+        minute,
+        El.Create.Label('since'),
+        day,
+        El.Create.Label('<b>.</b>'),
+        month,
+        El.Create.Label('<b>.</b>'),
+        year,
+        El.Create.Label('repeat'),
+        El.Create.Select(['nothing', 'every week', 'every day'], selectValue),
+        remove,
+      ])
+      El.Add(El.ById('schedule'), main)
+    }
+
+    // On load page fetch all data
+    window.onload = Promise.all(
+      Object.values(api).map((url) => Request.Get(url))
+    )
+
+    // Modal opens logic
+    const openInfo = () => {
+      const el = document.getElementById('modal-info')
+      if (el.classList.value === 'hide') {
+        el.classList = 'show'
+      } else {
+        el.classList = 'hide'
+      }
+    }
+
+    // Change values
+
+    // Change toggle value by name
+    const changeToggle = async (name) =>
+      await Request.Put(api[name], { enable: !state[name].data.enable })
+
+    // Change ntp server
+    const changeUrl = async () =>
+      await Request.Put(api.url, { url: El.ById('server-ntp').value })
+
+    // Change wifi connection
+    const changeWiFi = async () =>
+      await Request.Put(api.wifi, { ssid: El.ById('wifi-ssid').value, password: El.ById('wifi-pass').value })
+
+    // Change auth data
+    const changeLogin = async () =>
+      await Request.Put("/api/auth", {
+        login: El.ById('admin-login').value,
+        old_password: El.ById('admin-old-pass').value,
+        new_password: El.ById('admin-new-pass').value
+      })
+
+    // Change ntp server
+    const ntpSync = async () => {
+      await Request.Post('/api/time/ntp/sync', null)
+      await Request.Get(api.time, null)
+    }
+    // Set manual time and date
+    const setManualTime = async () => {
+      const hour = El.ById('manual-hour').value
+      const minutes = El.ById('manual-minute').value
+      const day = El.ById('manual-day').value
+      const month = El.ById('manual-month').value - 1
+      const year = El.ById('manual-year').value
+      const date = Date.UTC(year, month, day, hour, minutes) / 1000 + (new Date().getTimezoneOffset() * 60)
+      console.log(date)
+      await Request.Put(api.time, { time_sec: date })
+      await Request.Get(api.time, null)
+      //todo:update time
+    }
+
+    const sendSchedule = async () => {
+      let response = []
+      const timeOffset = new Date().getTimezoneOffset() * 60;
+      const items = Array.from(document.getElementsByClassName('schedule-item'))
+      items.forEach((item, i) => {
+        const inputs = item.getElementsByTagName('input')
+        const select = item.getElementsByTagName('select')
+        const date = Date.UTC(inputs[4].value, inputs[3].value - 1, inputs[2].value, inputs[0].value, inputs[1].value)
+        response[i] = {
+          'time_sec': date / 1000 + timeOffset,
+          'repeat': select[0].selectedIndex
+        }
+      })
+      El.ById('schedule').innerText = '';
+      await Request.Put(api.schedule, response)
+      //console.log(response)
+    }
+  </script>
+  <style>
+    .pure-form input:invalid {
+      color: #b94a48;
+      border-color: #e9322d
+    }
+
+    .schedule-item label {
+      padding: 4px 4px;
+    }
+
+    .schedule-item :nth-child(4) {
+      margin-left: 8px;
+    }
+
+    .schedule-item :nth-child(10) {
+      margin-left: 8px;
+    }
+
+    .schedule-item button {
+      margin-left: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>AutoPill</h1>
+  </header>
+  <main>
+    <row>
+      <p>Current date:</p>
+      <p id="current-time">31.01.2000 23:59</p>
+    </row>
+    <form class="pure-form pure-form-stacked">
+      <fieldset>
+        <legend>Base</legend>
+        <label for="light" class="pure-checkbox">
+          <input id="light" type="checkbox" onclick="changeToggle('light')"> Light notification
+        </label>
+        <label for="lock" class="pure-checkbox">
+          <input id="lock" type="checkbox" onclick="changeToggle('lock')"> Distance lock
+        </label>
+        <label for="server-ntp">Manual rotate</label>
+        <button type="button" class="pure-button pure-button-primary" onclick="rotateBack()">Back</button>
+        <button type="button" class="pure-button pure-button-primary" onclick="rotateForward()">Forward</button>
+      </fieldset>
+    </form>
+    <form class="pure-form">
+      <fieldset>
+        <legend>Time</legend>
+        <input id="manual-hour" class="time" type="text" size="1" maxlength="2" placeholder="13">
+        <label><b>:</b></label>
+        <input id="manual-minute" class="time" type="text" size="1" maxlength="2" placeholder="00">
+        <input id="manual-day" class="time" type="text" size="1" maxlength="2" style="margin-left: 8px"
+          placeholder="DD">
+        <label><b>.</b></label>
+        <input id="manual-month" class="time" type="text" size="1" maxlength="2" placeholder="MM">
+        <label><b>.</b></label>
+        <input id="manual-year" class="time" type="text" size="2" maxlength="4" style="margin-right: 8px"
+          placeholder="YYYY">
+        <button type="button" class="pure-button pure-button-primary" onclick="setManualTime()">Set time</button>
+      </fieldset>
+    </form>
+    <form class="pure-form pure-form-aligned">
+      <fieldset>
+        <legend>Time synchronization</legend>
+        <label for="autosync" class="pure-checkbox">
+          <input id="autosync" type="checkbox" onclick="changeToggle('autosync')"> Auto synchronization
+        </label>
+        <fieldset>
+          <label for="server-ntp">Server NTP</label>
+          <input id="server-ntp" type="url" placeholder="pool.ntp.org" style="margin: 0 8px">
+          <button type="button" class="pure-button pure-button-primary" onclick="changeUrl()">Save</button>
+        </fieldset>
+        <button type="button" class="pure-button pure-button-primary" onclick="ntpSync()">Sync now</button>
+      </fieldset>
+    </form>
+    <form class="pure-form pure-form-aligned">
+      <fieldset>
+        <legend>Security settings</legend>
+        <fieldset>
+          <label for="wifi">WiFi connect</label>
+          <input id="wifi-ssid" type="text" placeholder="SSID" style="margin: 0 4px">
+          <input id="wifi-pass" type="password" placeholder="Password" style="margin: 0 4px">
+          <button type="button" class="pure-button pure-button-primary" onclick="changeWiFi()">Reconnect</button>
+        </fieldset>
+        <fieldset>
+          <label for="admin">Auth info</label>
+          <input id="admin-login" type="text" placeholder="New Username" style="margin: 0 4px">
+          <input id="admin-old-pass" type="password" placeholder="Old password" style="margin: 0 4px">
+          <input id="admin-new-pass" type="password" placeholder="New Password" style="margin: 0 4px">
+          <button type="button" class="pure-button pure-button-primary" onclick="changeLogin()">Save</button>
+        </fieldset>
+      </fieldset>
+    </form>
+    <form class="pure-form pure-form-aligned">
+      <fieldset>
+        <legend>Schedule</legend>
+        <fieldset id="schedule">
+        </fieldset>
+        <button type="button" class="pure-button" onclick="addScheludes()">Add row</button>
+        <button type="button" class="pure-button pure-button-primary" onclick="sendSchedule()">Save</button>
+      </fieldset>
+    </form>
+  </main>
+</body>
+
+</html>
