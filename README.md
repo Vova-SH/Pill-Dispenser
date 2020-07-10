@@ -27,6 +27,7 @@ With the correct request or processing in all cases, returning `200` status code
 #### Main settings
 ##### Distance lock
 This setting shows current status dispensing hole. This is necessary if you want to lock up getting current pills.
+
 `GET` `PUT` **/api/lock**
 Request and response:
 ```json
@@ -34,6 +35,7 @@ Request and response:
 ```
 ##### Light notification
 This setting turns on the light after changing the sector with pills.
+
 `GET` `PUT` **/api/light**
 Request and response:
 ```json
@@ -42,6 +44,7 @@ Request and response:
 #### Time settings
 ##### Current time
 This request is needed for getting current time on device. The value of time in seconds since 1970 January 1 00:00.
+
 `GET` **/api/time**
 Response:
 ```json
@@ -49,6 +52,7 @@ Response:
 ```
 ##### Setup manual time
 The value of time in seconds since 1970 January 1 00:00.
+
 `PUT` **/api/time**
 Request (and response):
 ```json
@@ -56,6 +60,7 @@ Request (and response):
 ```
 ##### NTP server url
 Get and setup url NTP server.
+
 `GET` `PUT` **/api/time/ntp**
 Request and response:
 ```json
@@ -63,6 +68,7 @@ Request and response:
 ```
 ##### NTP auto sync
 Auto sync time with NTP every hour.
+
 `GET` `PUT` **/api/time/ntp/auto**
 Request and response:
 ```json
@@ -70,10 +76,12 @@ Request and response:
 ```
 ##### NTP sync
 This method is necessary if you want to sync it with NTP right now.
+
 `POST` **/api/time/ntp/sync**
 #### Security settings
 ##### Change WiFi setting
 You can use this method to connect to a different access point or a non-WPS access point. After sending the request, the device tries to connect to the new access point and doesn't return a response.
+
 `PUT` **/api/wifi**
 Request:
 ```json
@@ -84,6 +92,7 @@ Request:
 ```
 ##### Get WiFi SSID
 This method returns current SSID access point.
+
 `GET` **/api/wifi**
 Request:
 ```json
@@ -91,6 +100,7 @@ Request:
 ```
 ##### Change Login form
 If you want to change login and password for authentication, you can use this request. Your digest authentication must be invalid after this request is successfully completed.
+
 `PUT` **/api/auth**
 Request:
 ```json
