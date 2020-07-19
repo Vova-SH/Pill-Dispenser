@@ -37,7 +37,7 @@ void schedule_init(const schedule_task_t tasks[], size_t size, void (*handler)()
  * 
  * @return Количество таймеров, которые сработали ложно. Положительное значение, если сработали раньше, отрицательное, если позже
  */
-int schedule_time_correct();
+//int schedule_time_correct();
 /**
  * @brief Return all task in schedule
  * 

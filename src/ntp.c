@@ -29,7 +29,8 @@ void time_sync_notification_cb(struct timeval *tv)
 
 void ntp_sync()
 {
-    if (!ntp_configs.autosync) ntp_init_();
+    if (!ntp_configs.autosync)
+        ntp_init_();
     int retry = 0;
     const int retry_count = 10;
     sntp_set_sync_status(SNTP_SYNC_STATUS_RESET);
@@ -46,16 +47,17 @@ void ntp_sync()
 void ntp_init_()
 {
     ESP_LOGI(TAG, "Initializing SNTP");
-        sntp_setoperatingmode(SNTP_OPMODE_POLL);
-        sntp_setservername(0, ntp_configs.uri);
-        sntp_set_time_sync_notification_cb(time_sync_notification_cb);
-        sntp_init();
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, ntp_configs.uri);
+    sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+    sntp_init();
 }
 
 void ntp_init()
 {
     ESP_LOGI(TAG, "Initializing SNTP");
-    if (ntp_configs.autosync) ntp_init_();
+    if (ntp_configs.autosync)
+        ntp_init_();
 }
 
 void ntp_deinit()

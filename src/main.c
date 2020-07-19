@@ -68,6 +68,11 @@ void timer_handler()
     }
     led_disable(PIN_MOTOR_DC);
     led_disable(25);
+    //Enable light
+    if (current_config.light_notification)
+    {
+        led_enable(PIN_LED);
+    }
 }
 
 void blink_start()
@@ -84,7 +89,7 @@ void blink_start()
     vTaskDelete(NULL);
 }
 
-void rotartion_sensor()
+void rotation_sensor()
 {
     led_disable(PIN_LED);
 }
@@ -241,8 +246,8 @@ httpd_err_code_t put_handler(const char uri[], char *json)
         struct timeval tv_now;
         tv_now.tv_sec = sec - 1073;
         settimeofday(&tv_now, NULL);
-        int correct = schedule_time_correct();
-        printf("Skip: %d\n", correct);
+        //int correct = schedule_time_correct();
+        //printf("Skip: %d\n", correct);
         status = -1;
     }
     else if (strcmp(uri, "/api/time/ntp") == 0)
@@ -264,7 +269,9 @@ httpd_err_code_t put_handler(const char uri[], char *json)
             flash_commit();
         }
         config.autosync = enable;
+        ntp_deinit();
         ntp_set_config(config);
+        ntp_init();
         status = -1;
     }
     else if (strcmp(uri, "/api/schedule") == 0)
@@ -355,6 +362,7 @@ void init()
 
     flash_open_directory();
     load_configuration();
+    ntp_init();
 }
 
 void app_main(void)
@@ -363,7 +371,7 @@ void app_main(void)
     //timer_handler();
 
     button_handler_add(PIN_BUTTON, wps_start, NULL);
-    button_handler_add(PIN_ROTATION_SENSOR, rotartion_sensor, NULL);
+    button_handler_add(PIN_ROTATION_SENSOR, rotation_sensor, NULL);
     server_register_get_handler(get_handler);
     server_register_put_handler(put_handler);
     server_register_post_handler(post_handler);

@@ -1,5 +1,6 @@
 # Automatic Pill Dispenser
 ESP-IDF v4.0.1 (with PlatformIO IDE)
+
 No third-party dependencies
 ## Base functionality
 - Connecting to previous WiFi

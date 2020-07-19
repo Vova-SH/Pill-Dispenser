@@ -133,7 +133,8 @@ void schedule_time_update()
     time_t now = get_current_time();
     for (size_t i = 0; i < times_count; i++)
     {
-        if (s_times[i].repeat == SCHEDULE_REPEAT_DISABLE)
+        ESP_LOGI("TIMER", "%d", s_times[i].repeat);
+        if (s_times[i].repeat == SCHEDULE_REPEAT_DISABLE || s_times[i].repeat == -1)
         {
             s_times[i].repeat = -1;
         }

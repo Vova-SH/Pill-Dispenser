@@ -1,4 +1,5 @@
 #include "server_auth_digest.h"
+#define DEBUG false
 static const char *TAG = "DIGEST AUTH";
 
 typedef enum
@@ -96,7 +97,10 @@ static digest_auth_err_t authentification_login(char *source, const char *method
     cnonce = clean_value(cnonce);
     qop = clean_value(qop);
     nc = clean_value(nc);
-    ESP_LOGI(TAG, "Response: %s", response);
+    if (DEBUG)
+    {
+        ESP_LOGI(TAG, "Response: %s", response);
+    }
 
     if (strcmp(username, user) != 0)
     {
@@ -107,15 +111,21 @@ static digest_auth_err_t authentification_login(char *source, const char *method
     sprintf((char *)a1, "%s:%s:%s", username, realm, password);
     mbedtls_md5_ret(a1, strlen((char *)a1), ha1);
     convert_md5(ha1, str_ha1);
-    ESP_LOGI(TAG, "%s", a1);
-    ESP_LOGI(TAG, "%s", str_ha1);
+    if (DEBUG)
+    {
+        ESP_LOGI(TAG, "%s", a1);
+        ESP_LOGI(TAG, "%s", str_ha1);
+    }
 
     unsigned char a2[64], ha2[16], str_ha2[33];
     sprintf((char *)a2, "%s:%s", method, uri);
     mbedtls_md5_ret(a2, strlen((char *)a2), ha2);
     convert_md5(ha2, str_ha2);
-    ESP_LOGI(TAG, "%s", a2);
-    ESP_LOGI(TAG, "%s", str_ha2);
+    if (DEBUG)
+    {
+        ESP_LOGI(TAG, "%s", a2);
+        ESP_LOGI(TAG, "%s", str_ha2);
+    }
 
     unsigned char result[256], hres[16], str_hres[33];
     sprintf((char *)result, "%s:%s:%s:%s:%s:%s", str_ha1, nonce, nc, cnonce, qop, str_ha2);
@@ -123,8 +133,11 @@ static digest_auth_err_t authentification_login(char *source, const char *method
     mbedtls_md5(result, strlen((char *)result), hres);
     convert_md5(hres, str_hres);
 
-    ESP_LOGI(TAG, "%s", result);
-    ESP_LOGI(TAG, "%s", str_hres);
+    if (DEBUG)
+    {
+        ESP_LOGI(TAG, "%s", result);
+        ESP_LOGI(TAG, "%s", str_hres);
+    }
     if (strcmp(response, (char *)str_hres) == 0)
     {
         return DIGEST_SUCCESS;
