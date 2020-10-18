@@ -186,8 +186,10 @@
     // Change values
 
     // Change toggle value by name
-    const changeToggle = async (name) =>
+    const changeToggle = async (name) => {
       await Request.Put(api[name], { enable: !state[name].data.enable })
+      await Request.Get(api.time, null)
+    }
 
     // Change ntp server
     const changeUrl = async () =>
@@ -224,6 +226,10 @@
       //todo:update time
     }
 
+    const rotateForward = async () => {
+      await Request.Post("/api/next", null)
+    }
+
     const sendSchedule = async () => {
       let response = []
       const timeOffset = new Date().getTimezoneOffset() * 60;
@@ -241,6 +247,17 @@
       await Request.Put(api.schedule, response)
       //console.log(response)
     }
+
+    var hideTime = 0
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === 'visible') {
+        state.time.data.time_sec += (new Date() - hideTime) / 1000
+        setCurrentTime()
+      } else {
+        clearInterval(intervalId)
+        hideTime = new Date();
+      }
+    });
   </script>
   <style>
     .pure-form input:invalid {
@@ -285,8 +302,7 @@
           <input id="lock" type="checkbox" onclick="changeToggle('lock')"> Distance lock
         </label>
         <label for="server-ntp">Manual rotate</label>
-        <button type="button" class="pure-button pure-button-primary" onclick="rotateBack()">Back</button>
-        <button type="button" class="pure-button pure-button-primary" onclick="rotateForward()">Forward</button>
+        <button type="button" class="pure-button pure-button-primary" onclick="rotateForward()">Give next pills</button>
       </fieldset>
     </form>
     <form class="pure-form">

@@ -8,9 +8,18 @@
 #include "mbedtls/base64.h"
 #include "mbedtls/md5.h"
 
+typedef struct digest_config
+{
+    const char *username;
+    const char *password;
+} digest_config_t;
+
 esp_err_t digest_auth(httpd_req_t *req, const char *method);
 
 void digest_init();
 void digest_deinit();
+
+void digest_set_config(digest_config_t config);
+digest_config_t digest_get_config();
 
 #endif

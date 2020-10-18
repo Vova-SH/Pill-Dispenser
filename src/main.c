@@ -32,6 +32,8 @@
 #define FLASH_NTP_AUTOSYNC "NTP_AUTOSYNC"
 #define FLASH_WIFI_SSID "WIFI_SSID"
 #define FLASH_WIFI_PASS "WIFI_PASS"
+#define FLASH_AUTH_USER "AUTH_USER"
+#define FLASH_AUTH_PASS "AUTH_PASS"
 #define FLASH_SCHEDULE "SCHEDULE"
 
 typedef struct config
@@ -57,7 +59,7 @@ void timer_handler()
     int current_value;
     int count = 0;
     led_enable(PIN_MOTOR_DC);
-    while (count < 13)
+    while (count < 6)
     {
         current_value = gpio_get_level(PIN_DISTANCE_SENSOR);
         if (output != current_value && current_value == 0)
@@ -73,6 +75,13 @@ void timer_handler()
     {
         led_enable(PIN_LED);
     }
+}
+
+void sync_time()
+{
+    ESP_LOGI("SCHEDULE", "Sync");
+    schedule_reset();
+    
 }
 
 void blink_start()
@@ -118,12 +127,13 @@ void load_configuration()
 
     size_t tasks_data_length;
     schedule_task_t *tasks = flash_get_blob(FLASH_SCHEDULE, &tasks_data_length);
+    
     if (tasks_data_length > 0)
     {
         schedule_init(tasks, tasks_data_length / sizeof(schedule_task_t), timer_handler);
         free(tasks);
     }
-    
+
     wifi_init();
     const char *ssid = flash_get_str(FLASH_WIFI_SSID, "WiFi");
     const char *pass = flash_get_str(FLASH_WIFI_PASS, "Password");
@@ -133,6 +143,12 @@ void load_configuration()
     wifi_config_t wifi_config = {
         .sta = wifi_sta};
     wifi_connect(wifi_config);
+
+    digest_config_t auth_setting = {
+        .username = flash_get_str(FLASH_AUTH_USER, "Admin"),
+        .password = flash_get_str(FLASH_AUTH_PASS, "Password"),
+    };
+    digest_set_config(auth_setting);
 }
 
 const char *get_handler(const char uri[])
@@ -313,6 +329,22 @@ httpd_err_code_t put_handler(const char uri[], char *json)
     }
     else if (strcmp(uri, "/api/auth") == 0)
     {
+        const char *user = cJSON_GetObjectItem(root, "login")->valuestring;
+        const char *old_pass = cJSON_GetObjectItem(root, "old_password")->valuestring;
+        const char *new_pass = cJSON_GetObjectItem(root, "new_password")->valuestring;
+        if (strcmp(old_pass, digest_get_config().password) == 0)
+        {
+            flash_set_str(FLASH_AUTH_USER, user);
+            flash_set_str(FLASH_AUTH_PASS, new_pass);
+            digest_config_t auth_setting = {
+                .username = user,
+                .password = new_pass,
+            };
+            digest_deinit();
+            digest_set_config(auth_setting);
+            digest_init();
+            status = -1;
+        }
     }
     cJSON_Delete(root);
     return status;
@@ -331,9 +363,6 @@ httpd_err_code_t post_handler(const char uri[], char *json)
     {
         timer_handler();
         status = -1;
-    }
-    else if (strcmp(uri, "/api/prev") == 0)
-    {
     }
     cJSON_Delete(root);
     return status;
@@ -362,6 +391,7 @@ void init()
 
     flash_open_directory();
     load_configuration();
+    ntp_set_sync_handler(sync_time);
     ntp_init();
 }
 

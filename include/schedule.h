@@ -32,6 +32,10 @@ typedef struct schedule_task {
 
 void schedule_init(const schedule_task_t tasks[], size_t size, void (*handler)());
 
+void schedule_correct();
+
+void schedule_reset();
+
 /**
  * @brief Correct timers after update time
  * 

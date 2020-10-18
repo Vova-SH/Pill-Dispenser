@@ -17,6 +17,8 @@ typedef struct ntp_config
 void ntp_init();
 void ntp_deinit();
 void ntp_sync();
+void ntp_set_sync_handler(void (*handler)(void*));
+void ntp_remove_sync_handler();
 void ntp_set_config(ntp_config_t config);
 ntp_config_t ntp_get_config();
 

@@ -2,6 +2,8 @@
 
 static const char *TAG = "NTP";
 
+void (*ntp_sync_handler)() = NULL;
+
 ntp_config_t ntp_configs = {
     .uri = "pool.ntp.org",
     .autosync = 0,
@@ -25,6 +27,11 @@ void time_sync_notification_cb(struct timeval *tv)
 {
     ESP_LOGI(TAG, "Notification of a time synchronization event");
     ntp_set_time(tv);
+    if (ntp_sync_handler != NULL)
+    {
+        ntp_sync_handler();
+    }
+    
 }
 
 void ntp_sync()
@@ -63,6 +70,16 @@ void ntp_init()
 void ntp_deinit()
 {
     sntp_stop();
+}
+
+void ntp_set_sync_handler(void (*handler)(void*))
+{
+    ntp_sync_handler = handler;
+}
+
+void ntp_remove_sync_handler()
+{
+    ntp_sync_handler = NULL;
 }
 
 void ntp_set_config(ntp_config_t config)

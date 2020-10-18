@@ -7,13 +7,34 @@ time_t triggered_last = 0;
 void (*schedule_timer_handler)() = NULL;
 esp_timer_handle_t schedule_timer = NULL;
 
-void schedule_time_update();
+time_t task_update(size_t task_num, time_t current_time)
+{
+    time_t time = s_times[task_num].time;
+    int repeat = s_times[task_num].repeat;
+
+    if (current_time > time)
+    {
+        if (repeat == SCHEDULE_REPEAT_DISABLE)
+        {
+            repeat = -1;
+            return -1;
+        }
+        do
+        {
+            time += repeat;
+        } while (current_time > time);
+    }
+    s_times[task_num].time = time;
+    return time;
+}
 
 void timer_stop()
 {
     if (schedule_timer != NULL)
     {
         esp_timer_stop(schedule_timer);
+        esp_timer_delete(schedule_timer);
+        schedule_timer = NULL;
     }
 }
 
@@ -28,10 +49,9 @@ static void schedule_timer_callback(void *arg)
 {
     int64_t time_since_boot = esp_timer_get_time();
     ESP_LOGI("Timer", "Periodic timer called, time since boot: %lld us", time_since_boot);
-    triggered_last = get_current_time();
     schedule_timer_handler();
     printf("Current time: %ld\n", triggered_last);
-    schedule_time_update();
+    schedule_reset();
 }
 
 int schedule_repeat_to_interval(schedule_repeat_t repeat)
@@ -51,7 +71,8 @@ int schedule_repeat_to_interval(schedule_repeat_t repeat)
 
 void schedule_set_timer()
 {
-    size_t i = 0;
+    //Find nearest time
+    size_t i;
     time_t min_time;
     for (i = 0; i < times_count; i++)
     {
@@ -70,79 +91,57 @@ void schedule_set_timer()
             min_time = s_times[i].time;
         }
     }
-    //todo: set timer
+    //Setup timer
     const esp_timer_create_args_t timer_args = {
         .callback = &schedule_timer_callback,
         /* name is optional, but may help identify the timer when debugging */
-        .name = "periodic"};
+        .name = "once"};
     min_time -= get_current_time();
     printf("Start timer on: %lu\n", min_time);
     ESP_ERROR_CHECK(esp_timer_create(&timer_args, &schedule_timer));
     ESP_ERROR_CHECK(esp_timer_start_once(schedule_timer, min_time * 1e6));
 }
-//todo: ДОБАВИТЬ ЗАВИСИМОСТЬ ОТ ПОСЛЕДНЕГО СРАБАТЫВАНИЯ при отводе времени назад, чтобы таймеры которые были изначально впереди не ушли назад
-int schedule_time_correct()
+
+void schedule_correct()
 {
     timer_stop();
     time_t now = get_current_time();
-    int counter = 0;
+    if (triggered_last > now)
+    {
+        now = triggered_last;
+    }
+
     for (size_t i = 0; i < times_count; i++)
     {
-        if (now > s_times[i].time)
+        time_t time = s_times[i].time;
+        int repeat = s_times[i].repeat;
+        if (repeat < 1)
         {
-            if (s_times[i].repeat <= 0)
-            {
-                s_times[i].repeat = -1;
-            }
-            else
-            {
-                unsigned long time = s_times[i].time;
-                while (now > time)
-                {
-                    time += s_times[i].repeat;
-                    counter++;
-                }
-                s_times[i].time = time;
-            }
+            s_times[i].repeat = 0;
         }
         else
         {
-            if (s_times[i].repeat <= 0)
+            while (now < time)
             {
-                s_times[i].repeat = 0;
+                time -= repeat;
             }
-            else
-            {
-                unsigned long time = s_times[i].time;
-                while (now < time)
-                {
-                    time -= s_times[i].repeat;
-                    counter--;
-                }
-                time += s_times[i].repeat;
-                counter++;
-                s_times[i].time = time;
-            }
+            s_times[i].time = time;
         }
+        task_update(i, now);
     }
-    return counter;
+    schedule_set_timer();
 }
 
-void schedule_time_update()
+void schedule_reset()
 {
+    timer_stop();
     time_t now = get_current_time();
+    triggered_last = now;
+
     for (size_t i = 0; i < times_count; i++)
     {
         ESP_LOGI("TIMER", "%d", s_times[i].repeat);
-        if (s_times[i].repeat == SCHEDULE_REPEAT_DISABLE || s_times[i].repeat == -1)
-        {
-            s_times[i].repeat = -1;
-        }
-        else
-        {
-            while (now >= s_times[i].time)
-                s_times[i].time += s_times[i].repeat;
-        }
+        task_update(i, now);
     }
     schedule_set_timer();
 }
@@ -150,7 +149,8 @@ void schedule_time_update()
 schedule_task_t *schedule_get_tasks(size_t *length)
 {
     *length = times_count;
-    if(times_count == 0) return NULL;
+    if (times_count == 0)
+        return NULL;
     schedule_task_t *result = (schedule_task_t *)malloc(times_count * sizeof(schedule_task_t));
     for (size_t i = 0; i < times_count; i++)
     {
@@ -176,34 +176,14 @@ void schedule_init(const schedule_task_t tasks[], size_t size, void (*handler)()
     if (size == 0)
         return;
     schedule_timer_handler = handler;
-    time_t now;
-    time(&now);
+    time_t now = get_current_time();
     times_count = size;
     s_times = (schedule_task_t *)malloc(size * sizeof(schedule_task_t));
     for (size_t i = 0; i < size; i++)
     {
-        unsigned long time = tasks[i].time;
-        int time_repeat = schedule_repeat_to_interval(tasks[i].repeat);
-        if (now > time)
-        {
-            if (tasks[i].repeat == SCHEDULE_REPEAT_DISABLE)
-            {
-                s_times[i].repeat = -1;
-                s_times[i].time = time;
-            }
-            else
-            {
-                while (now >= time)
-                    time += time_repeat;
-                s_times[i].repeat = time_repeat;
-                s_times[i].time = time;
-            }
-        }
-        else
-        {
-            s_times[i].repeat = time_repeat;
-            s_times[i].time = time;
-        }
+        s_times[i].time = tasks[i].time;
+        s_times[i].repeat = schedule_repeat_to_interval(tasks[i].repeat);
+        task_update(i, now);
     }
     schedule_set_timer();
 }

@@ -16,8 +16,10 @@ size_t nonce_size = 0;
 unsigned char *nonce;
 unsigned long last_update_hash = 0;
 
-const char *user = "Admin";
-const char *password = "Password";
+digest_config_t configs = {
+    .username = "Admin",
+    .password = "Password",
+};
 
 void convert_md5(const unsigned char input[16], unsigned char output[33])
 {
@@ -102,13 +104,13 @@ static digest_auth_err_t authentification_login(char *source, const char *method
         ESP_LOGI(TAG, "Response: %s", response);
     }
 
-    if (strcmp(username, user) != 0)
+    if (strcmp(username, configs.username) != 0)
     {
         return DIGEST_INVALID_USER;
     }
 
     unsigned char a1[64], ha1[16], str_ha1[33];
-    sprintf((char *)a1, "%s:%s:%s", username, realm, password);
+    sprintf((char *)a1, "%s:%s:%s", username, realm, configs.password);
     mbedtls_md5_ret(a1, strlen((char *)a1), ha1);
     convert_md5(ha1, str_ha1);
     if (DEBUG)
@@ -187,4 +189,16 @@ void digest_init()
 void digest_deinit()
 {
     free((void *)nonce);
+    nonce_size = 0;
+    last_update_hash = 0;
+}
+
+void digest_set_config(digest_config_t config)
+{
+    configs = config;
+}
+
+digest_config_t digest_get_config()
+{
+    return configs;
 }
