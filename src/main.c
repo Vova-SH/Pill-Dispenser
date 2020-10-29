@@ -309,22 +309,17 @@ httpd_err_code_t put_handler(const char uri[], char *json)
     else if (strcmp(uri, "/api/wifi") == 0)
     {
         wifi_disconnect();
-        ESP_LOGI("MAIN", "1");
         wifi_sta_config_t wifi_sta = {0};
         const char *ssid = cJSON_GetObjectItem(root, "ssid")->valuestring;
         const char *pass = cJSON_GetObjectItem(root, "password")->valuestring;
-        ESP_LOGI("MAIN", "2");
         flash_set_str(FLASH_WIFI_SSID, ssid);
         flash_set_str(FLASH_WIFI_PASS, pass);
         flash_commit();
-        ESP_LOGI("MAIN", "3");
         strncpy((char *)wifi_sta.ssid, ssid, 32);
         strncpy((char *)wifi_sta.password, pass, 64);
         wifi_config_t wifi_config = {.sta = wifi_sta};
-        ESP_LOGI("MAIN", "4");
         wifi_init();
         wifi_connect(wifi_config);
-        ESP_LOGI("MAIN", "5");
         status = -1;
     }
     else if (strcmp(uri, "/api/auth") == 0)
@@ -370,7 +365,6 @@ httpd_err_code_t post_handler(const char uri[], char *json)
 
 void init()
 {
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
     ESP_ERROR_CHECK(flash_init());
     servo_init(PIN_SERVO);
     led_init(PIN_LED);
@@ -379,7 +373,6 @@ void init()
     button_init(PIN_BUTTON);
     button_init(PIN_DISTANCE_SENSOR);
     button_init(PIN_ROTATION_SENSOR);
-    //ESP_ERROR_CHECK( nvs_flash_init() );
     struct timeval tv_now;
     tv_now.tv_sec = 604800 * 3;
     settimeofday(&tv_now, NULL);
