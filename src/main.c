@@ -20,8 +20,9 @@
 #include <driver/adc.h>
 
 #define PIN_SERVO GPIO_NUM_4
-#define PIN_LED GPIO_NUM_2
-#define PIN_BUTTON GPIO_NUM_15
+#define PIN_LED GPIO_NUM_3
+#define PIN_WIFI_LED GPIO_NUM_2
+#define PIN_BUTTON GPIO_NUM_14
 #define PIN_MOTOR_DC GPIO_NUM_12
 #define PIN_DISTANCE_SENSOR GPIO_NUM_13
 #define PIN_ROTATION_SENSOR GPIO_NUM_27
@@ -86,15 +87,15 @@ void sync_time()
 
 void blink_start()
 {
-    gpio_get_level(PIN_BUTTON);
+    //gpio_get_level(PIN_BUTTON);
+    bool state = 1;
     while (!killTask)
     {
-        led_enable(PIN_LED);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        led_disable(PIN_LED);
+        state = !state;
+        gpio_set_level(PIN_WIFI_LED, state);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
-    servo_set_angle(0);
+    //servo_set_angle(0);
     vTaskDelete(NULL);
 }
 
@@ -363,10 +364,34 @@ httpd_err_code_t post_handler(const char uri[], char *json)
     return status;
 }
 
+void wifi_events(wifi_event_connection_t status)
+{
+    switch (status)
+    {
+    case WIFI_CONNECTING:
+        killTask = 0;
+        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL );
+        break;
+    case WIFI_CONNECTED:
+        killTask = 1;
+        led_enable(PIN_WIFI_LED);
+        break;
+    case WIFI_WPS_START:
+        killTask = 0;
+        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL );
+        break;
+    default:
+        killTask = 1;
+        led_disable(PIN_WIFI_LED);
+        break;
+    }
+}
+
 void init()
 {
     ESP_ERROR_CHECK(flash_init());
     servo_init(PIN_SERVO);
+    led_init(PIN_WIFI_LED);
     led_init(PIN_LED);
     led_init(PIN_MOTOR_DC);
     button_init_global();
@@ -381,6 +406,8 @@ void init()
     led_init(25);
     led_init(26);
     led_enable(26);
+
+    wifi_handler_register(wifi_events);
 
     flash_open_directory();
     load_configuration();
