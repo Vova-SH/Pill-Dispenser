@@ -13,6 +13,8 @@
 #include "led.h"
 #include "button.h"
 #include "wifi.h"
+#include "wifi_connection/esptouch.h"
+#include "wifi_connection/wps.h"
 #include "flash.h"
 #include "server.h"
 #include "schedule.h"
@@ -26,6 +28,7 @@
 #define PIN_MOTOR_DC GPIO_NUM_12
 #define PIN_DISTANCE_SENSOR GPIO_NUM_13
 #define PIN_ROTATION_SENSOR GPIO_NUM_27
+#define PIN_LINE_SENSOR GPIO_NUM_32
 
 #define FLASH_LIGHT_NOTIFY "LIGHT_NOTIFY"
 #define FLASH_LOCK_STATE "LOCK"
@@ -56,21 +59,35 @@ void timer_handler()
 {
     //Distance
     led_enable(25);
+    //Line
+    led_enable(33);
     int output = gpio_get_level(PIN_DISTANCE_SENSOR);
     int current_value;
-    int count = 0;
+    int count_distance = 0;
+    bool is_white_sector = false, is_sector_complete = false;
     led_enable(PIN_MOTOR_DC);
-    while (count < 6)
+    while (count_distance < 12 && !is_sector_complete)
     {
+        current_value = gpio_get_level(PIN_LINE_SENSOR);
+        if (is_white_sector)
+        {
+            if (current_value == 0) is_sector_complete = true;
+        }
+        else if (current_value == 1)
+        {
+            is_white_sector = true;
+        }
+
         current_value = gpio_get_level(PIN_DISTANCE_SENSOR);
         if (output != current_value && current_value == 0)
         {
-            count++;
+            count_distance++;
         }
         output = current_value;
     }
     led_disable(PIN_MOTOR_DC);
     led_disable(25);
+    led_disable(33);
     //Enable light
     if (current_config.light_notification)
     {
@@ -82,7 +99,6 @@ void sync_time()
 {
     ESP_LOGI("SCHEDULE", "Sync");
     schedule_reset();
-    
 }
 
 void blink_start()
@@ -104,14 +120,14 @@ void rotation_sensor()
     led_disable(PIN_LED);
 }
 
-void wps_start(void *arg)
+void isr_wps_start(void *arg)
 {
     led_disable(PIN_LED);
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     if (!gpio_get_level(PIN_BUTTON))
     {
         led_enable(PIN_LED);
-        wifi_wps_start();
+        wps_start();
     }
 }
 
@@ -128,14 +144,13 @@ void load_configuration()
 
     size_t tasks_data_length;
     schedule_task_t *tasks = flash_get_blob(FLASH_SCHEDULE, &tasks_data_length);
-    
+
     if (tasks_data_length > 0)
     {
         schedule_init(tasks, tasks_data_length / sizeof(schedule_task_t), timer_handler);
         free(tasks);
     }
 
-    wifi_init();
     const char *ssid = flash_get_str(FLASH_WIFI_SSID, "WiFi");
     const char *pass = flash_get_str(FLASH_WIFI_PASS, "Password");
     wifi_sta_config_t wifi_sta = {0};
@@ -144,7 +159,6 @@ void load_configuration()
     wifi_config_t wifi_config = {
         .sta = wifi_sta};
     wifi_connect(wifi_config);
-
     digest_config_t auth_setting = {
         .username = flash_get_str(FLASH_AUTH_USER, "Admin"),
         .password = flash_get_str(FLASH_AUTH_PASS, "Password"),
@@ -193,10 +207,10 @@ const char *get_handler(const char uri[])
     else if (strcmp(uri, "/api/schedule") == 0)
     {
         cJSON_Delete(root);
-        size_t count = 0;
-        schedule_task_t *schedules = schedule_get_tasks(&count);
+        size_t count_distance = 0;
+        schedule_task_t *schedules = schedule_get_tasks(&count_distance);
         root = cJSON_CreateArray();
-        for (size_t i = 0; i < count; i++)
+        for (size_t i = 0; i < count_distance; i++)
         {
             cJSON *item = cJSON_CreateObject();
             cJSON_AddNumberToObject(item, "time_sec", schedules[i].time);
@@ -294,16 +308,16 @@ httpd_err_code_t put_handler(const char uri[], char *json)
     else if (strcmp(uri, "/api/schedule") == 0)
     {
         schedule_deinit();
-        int count = cJSON_GetArraySize(root);
-        schedule_task_t *tasks = (schedule_task_t *)malloc(count * sizeof(schedule_task_t));
-        for (size_t i = 0; i < count; i++)
+        int count_distance = cJSON_GetArraySize(root);
+        schedule_task_t *tasks = (schedule_task_t *)malloc(count_distance * sizeof(schedule_task_t));
+        for (size_t i = 0; i < count_distance; i++)
         {
             cJSON *const item = cJSON_GetArrayItem(root, i);
             tasks[i].time = (long)cJSON_GetObjectItem(item, "time_sec")->valuedouble;
             tasks[i].repeat = cJSON_GetObjectItem(item, "repeat")->valueint;
         }
-        flash_set_blob(FLASH_SCHEDULE, tasks, count * sizeof(schedule_task_t));
-        schedule_init(tasks, count, timer_handler);
+        flash_set_blob(FLASH_SCHEDULE, tasks, count_distance * sizeof(schedule_task_t));
+        schedule_init(tasks, count_distance, timer_handler);
         free(tasks);
         status = -1;
     }
@@ -319,7 +333,6 @@ httpd_err_code_t put_handler(const char uri[], char *json)
         strncpy((char *)wifi_sta.ssid, ssid, 32);
         strncpy((char *)wifi_sta.password, pass, 64);
         wifi_config_t wifi_config = {.sta = wifi_sta};
-        wifi_init();
         wifi_connect(wifi_config);
         status = -1;
     }
@@ -364,13 +377,13 @@ httpd_err_code_t post_handler(const char uri[], char *json)
     return status;
 }
 
-void wifi_events(wifi_event_connection_t status)
+static void wifi_events(wifi_event_connection_t status)
 {
     switch (status)
     {
     case WIFI_CONNECTING:
         killTask = 0;
-        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL );
+        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL);
         break;
     case WIFI_CONNECTED:
         killTask = 1;
@@ -378,7 +391,7 @@ void wifi_events(wifi_event_connection_t status)
         break;
     case WIFI_WPS_START:
         killTask = 0;
-        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL );
+        xTaskCreate(blink_start, "blink", 1000, NULL, 1, NULL);
         break;
     default:
         killTask = 1;
@@ -396,17 +409,21 @@ void init()
     led_init(PIN_MOTOR_DC);
     button_init_global();
     button_init(PIN_BUTTON);
+    button_init(PIN_LINE_SENSOR);
     button_init(PIN_DISTANCE_SENSOR);
     button_init(PIN_ROTATION_SENSOR);
     struct timeval tv_now;
     tv_now.tv_sec = 604800 * 3;
     settimeofday(&tv_now, NULL);
     //Sensor power
+    //Line Sensor
+    led_init(33);
     //Distance
     led_init(25);
     led_init(26);
     led_enable(26);
 
+    wifi_init();
     wifi_handler_register(wifi_events);
 
     flash_open_directory();
@@ -419,8 +436,16 @@ void app_main(void)
 {
     init();
     //timer_handler();
-
-    button_handler_add(PIN_BUTTON, wps_start, NULL);
+    /*
+    int current_value;
+    //led_enable(PIN_MOTOR_DC);
+    while (true)
+    {
+        current_value = gpio_get_level(32);
+        ESP_LOGI("MAIN", "%d", current_value);
+    }
+*/
+    button_handler_add(PIN_BUTTON, isr_wps_start, NULL);
     button_handler_add(PIN_ROTATION_SENSOR, rotation_sensor, NULL);
     server_register_get_handler(get_handler);
     server_register_put_handler(put_handler);

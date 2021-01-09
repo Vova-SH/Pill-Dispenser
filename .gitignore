@@ -2,6 +2,8 @@
 .piolibdeps
 .pio
 .vscode
+build
+sdkconfig.old
 
 # ============ #
 # OS generated #

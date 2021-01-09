@@ -31,12 +31,12 @@ void wifi_init();
 
 void wifi_handler_register(void (*handler)(wifi_event_connection_t));
 
+void wifi_handler_unregister(void (*handler)(wifi_event_connection_t));
+
 void wifi_connect(wifi_config_t config);
 
 void wifi_disconnect();
 
 wifi_config_t wifi_get_config();
-
-void wifi_wps_start();
 
 #endif
